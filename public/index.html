@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>QikChat - Welcome</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- All the files that are required -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <link href='http://fonts.googleapis.com/css?family=Varela+Round' rel='stylesheet' type='text/css'>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.13.1/jquery.validate.min.js"></script>
+    <link rel="stylesheet" href="./loginStyle.css">
+  </head>
+  
+  <body style="background-image: url('./images/login-back.jpg');">
+    <div class="brand-logo">
+      <span class="brand-name"> Qik Chat</span>
+      
+      <span class="chat-icon"><i class="fa fa-comments" aria-hidden="true"></i></span>
+      <p>Chat quickly anytime-anywhere</p>
+    </div>
+    <div class="note-cntr">
+      <p>Create a new room to start chatting. </p>
+      <p>OR</p>
+      <p>Join a room if you know the existing room id</p>
+    </div>
+  
+    
+  <!-- JOIN A ROOM FORM -->
+  <div id='join-room-ctnr' class="text-center" style="padding:175px 0">
+    <div class="logo">Join Room</div>
+    <!-- Main Form -->
+    <div class="login-form-1">
+      <form id="login-form" class="text-left">
+        <div class="login-form-main-message"></div>
+        <div class="main-login-form">
+          <div class="login-group">
+            <div class="form-group">
+              <label for="lg_username" class="sr-only">Your Name</label>
+              <input type="text" class="form-control" id="lg_username" name="lg_username" placeholder="Your Name">
+            </div>
+            <div class="form-group">
+              <label for="lg_roomid" class="sr-only">Room ID</label>
+              <input type="text" class="form-control room-id" id="lg_roomid_fld1" name="lg_roomid" placeholder="Room ID">
+            </div>
+          </div>
+          <button type="submit" class="login-button"><i class="fa fa-chevron-right"></i></button>
+        </div>
+        <div class="etc-login-form">
+          <p>Create a Room ? <a id='lnk-create-room' href="#">click here</a></p>
+          <!--<p>new user? <a href="#">create new account</a></p> -->
+        </div>
+      </form>
+    </div>
+    <!-- end:JOIN A Form -->
+  </div>
+
+  <!-- CREATE A ROOM FORM -->
+  <div id='create-room-ctnr' class="text-center" style="padding:175px 0;display: none;">
+    <div class="logo">Create a Room</div>
+    <div class="login-form-1">
+      <form id="register-form" class="text-left">
+        <div class="login-form-main-message"></div>
+        <div class="main-login-form">
+          <div class="login-group">
+            <div class="form-group">
+              <label for="reg_username" class="sr-only">Your Name</label>
+              <input type="text" class="form-control" id="reg_username" name="reg_username" placeholder="Your Name">
+            </div>
+            <div class="form-group">
+              <label for="reg_roomname" class="sr-only">Room Name</label>
+              <input type="text" class="form-control" id="reg_roomname" name="reg_roomname" placeholder="Room Name">
+            </div>
+          </div>
+          <button type="submit" class="login-button"><i class="fa fa-chevron-right"></i></button>
+        </div>
+        <div class="etc-login-form">
+          <p>Already have a Room? <a id='lnk-join-room' href="#">click here</a></p>
+        </div>
+      </form>
+    </div>
+  </div>    <!-- end:CREATE ROOM CTNR -->
+
+  <script>
+    (function ($) {
+      "use strict";
+
+      // Options for Message
+      //----------------------------------------------
+      var options = {
+        'btn-loading': '<i class="fa fa-spinner fa-pulse"></i>',
+        'btn-success': '<i class="fa fa-check"></i>',
+        'btn-error': '<i class="fa fa-remove"></i>',
+        'msg-success': 'All Good! Redirecting...',
+        'msg-error': 'Wrong login credentials!',
+        'useAJAX': true
+      };
+
+      // Login Form
+      //----------------------------------------------
+      // Validation
+      $("#login-form").validate({
+        rules: {
+          lg_username: "required",
+          lg_roomid_fld1:{
+            required:true,
+            number:true,
+            maxlength:4,
+            minlength:4
+          },
+          lg_roomid_fld2:{
+            required:true,
+            number:true,
+            maxlength:4,
+            minlength:4
+          }
+        },
+        errorClass: "form-invalid"
+      });
+
+      // Form Submission
+      $("#login-form").submit(function () {
+        remove_loading($(this));
+
+        if (options['useAJAX'] == true)
+        {
+          submitLoginForm($(this));
+          return false;
+        }
+      });
+
+      // Register Form
+      //----------------------------------------------
+      // Validation
+      $("#register-form").validate({
+        rules: {
+          reg_username: "required",
+          reg_roomname: "required"
+        },
+        errorClass: "form-invalid"
+      });
+
+      // Form Submission
+      $("#register-form").submit(function () {
+        remove_loading($(this));
+
+        if (options['useAJAX'] == true)
+        {
+          submitCreateForm($(this));
+          return false;
+        }
+      });
+
+      // Forgot Password Form
+      //----------------------------------------------
+      // Validation
+      $("#forgot-password-form").validate({
+        rules: {
+          fp_email: "required",
+        },
+        errorClass: "form-invalid"
+      });
+
+      $("#lnk-create-room").click(function(e){
+        e.stopPropagation();
+        $("#join-room-ctnr").hide();
+        $("#create-room-ctnr").show();
+      });
+      
+      $("#lnk-join-room").click(function(e){
+        e.stopPropagation();
+        $("#join-room-ctnr").show();
+        $("#create-room-ctnr").hide();
+      });
+
+      // Loading
+      //----------------------------------------------
+      function remove_loading($form)
+      {
+        $form.find('[type=submit]').removeClass('error success');
+        $form.find('.login-form-main-message').removeClass('show error success').html('');
+      }
+
+      function form_loading($form)
+      {
+        $form.find('[type=submit]').addClass('clicked').html(options['btn-loading']);
+      }
+
+      function form_success($form)
+      {
+        $form.find('[type=submit]').addClass('success').html(options['btn-success']);
+        $form.find('.login-form-main-message').addClass('show success').html(options['msg-success']);
+      }
+
+      function form_failed($form)
+      {
+        $form.find('[type=submit]').addClass('error').html(options['btn-error']);
+        $form.find('.login-form-main-message').addClass('show error').html(options['msg-error']);
+      }
+
+      //Submit form to join a room
+      function submitLoginForm($form)
+      {
+        if ($form.valid())
+        {
+          form_loading($form);
+          authenticateJoining($form);
+        }
+      }
+      
+      //Submit form to create a room
+      function submitCreateForm($form){
+        if ($form.valid())
+        {
+          form_loading($form);
+          createRoom($form);
+        }
+      }
+      
+      function createRoom($form){
+        var uname = $form.find("#reg_username").val();
+        var rname = $form.find("#reg_roomname").val();
+        $.ajax({
+          url:"/createRoom",
+          method:"post",
+          data:JSON.stringify({"uname":uname,"rname":rname}),
+          contentType: 'application/json',
+          dataType:"JSON",
+          success:function(resp){
+            console.log(resp);
+            if(resp.validity === "valid"){
+              form_success($form);
+              saveSession(resp);
+              window.location = "/chat-room";
+            }else {
+              options['msg-error'] = resp["msg"];
+              form_failed($form);
+              console.log("error");
+            }
+          },
+          error:function(){
+            form_failed($form);
+            console.log("error");
+          }
+        });
+      }
+      
+      function authenticateJoining($form){
+        var uname = $form.find("#lg_username").val();
+        var roomid = $form.find("#lg_roomid_fld1").val();//+"-"+$form.find("#lg_roomid_fld2").val();
+        $.ajax({
+          url:"/joinRoom",
+          method:"post",
+          data:JSON.stringify({"uname":uname,"roomid":roomid}),
+          contentType: 'application/json',
+          dataType:"JSON",
+          success:function(resp){
+            console.log(resp);
+            if(resp.validity === "valid"){
+              form_success($form);
+              saveSession(resp);
+              window.location = "/chat-room";
+            }else {
+              options['msg-error'] = resp["msg"];
+              form_failed($form);
+              console.log("error");
+            }
+          },
+          error:function(){
+            form_failed($form);
+            console.log("error");
+          }
+        });
+      }
+      
+      function saveSession(data){
+        console.log(data);
+        if (typeof(Storage) !== "undefined") {
+          for(var key in data){
+            window.sessionStorage[key] = data[key];
+          }
+        } else {
+            // Sorry! No Web Storage support..
+        }
+      }
+
+    })(jQuery);
+  </script>
+</body>
+</html>

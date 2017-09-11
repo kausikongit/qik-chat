@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>QikChat - Chat room</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-timeago/1.5.4/jquery.timeago.min.js"></script>
+  <link rel="stylesheet" href="./chatRoomStyle.css">
+</head>
+<body>
+  <div id="navbar-wrapper">
+    <header>
+      <nav class="navbar navbar-default navbar-fixed-top" role="navigation">
+        <div class="container-fluid">
+          <div class="navbar-header">
+            <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar-collapse">
+              <span class="sr-only">Toggle navigation</span>
+              <span class="icon-bar"></span>
+              <span class="icon-bar"></span>
+              <span class="icon-bar"></span>
+            </button>
+            <a class="navbar-brand" href="#">Room <span id="roomname"></span> # <span id="roomid"></span></a>
+          </div>
+          <div id="navbar-collapse" class="collapse navbar-collapse">
+            <ul class="nav navbar-nav navbar-right">
+              <li class="dropdown">
+                <a id="user-profile" href="#" class="dropdown-toggle" data-toggle="dropdown"><img src="./images/user-prof-icon.jpg" class="img-responsive img-thumbnail img-circle"><span id="uname"></span></a>
+                <ul class="dropdown-menu dropdown-block" role="menu">
+                  <li><a href="/chat-room">Refresh</a></li>
+                  <li><a href="/">Leave Room</a></li>
+                </ul>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </nav>
+    </header>
+  </div>
+  <div id="wrapper">
+    <div id="sidebar-wrapper">
+      <aside id="sidebar">
+        <ul id="sidemenu" class="sidebar-nav">
+          <!-- all user list will dynamically added here -->
+        </ul>
+      </aside>            
+    </div> 
+    <main id="page-content-wrapper" role="main">
+      <div class="container">
+        <div class="row">
+          <div class="col-md-12 all-pane-cntr">
+            <!-- -------------- chat pane start ------------------>
+
+            <!-- -------------- chat pane end ------------------>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div> 
+ 
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    //sample response {validity:"valid",uname:uname,uid:uid,roomid:"roomId",msg:"valid user"}
+    var uid = window.sessionStorage.uid;
+    var roomid = window.sessionStorage.roomid;
+    var rname = window.sessionStorage.rname;
+    var socket;
+    var files = {}; 
+    if(!uid || !roomid)window.location = "/";
+    else { init(); }
+    
+    function init(){
+      //socket = io.connect('http://localhost:8080');
+      socket = io.connect('http://192.168.2.69:8080');
+      
+      $("#roomid").text(window.sessionStorage.roomid);
+      $("#roomname").text(window.sessionStorage.rname);
+      
+      /*********Register user in the chat room with socket.io************/
+      socket.emit("regUser",{"uid":uid,"roomid":roomid});
+      
+      /**** Show chat pane for all user and sync messages *******/
+      showChatPane("all","all","all");
+      
+      socket.on("debug",function(data){
+        console.log(data);
+      });
+
+      socket.on('updateUserList',function(userData){
+        updateUserList(userData);
+      });
+      
+      socket.on('newMsg',function(msgData){
+        var paneId = "";
+        if(msgData.fromUid === "all" || msgData.toId === "all")
+          paneId = "pane-all-all";
+        else if($("#pane-"+msgData.fromUid+"-"+msgData.toId).length === 0 && $("#pane-"+msgData.toId+"-"+msgData.fromUid).length === 0)
+          paneId = "notExist";
+        else if($("#pane-"+msgData.fromUid+"-"+msgData.toId).length > 0)
+          paneId = "pane-"+msgData.fromUid+"-"+msgData.toId;
+        else
+          paneId = "pane-"+msgData.toId+"-"+msgData.fromUid;
+        
+        if(paneId === "notExist"){
+          var uname = (msgData.fromUid === window.sessionStorage.uid)?msgData.toUname:msgData.fromUname;
+          showChatPane(msgData.fromUid, msgData.toId ,uname);
+          paneId = "pane-"+msgData.fromUid+"-"+msgData.toId;
+        }
+        
+        switch(msgData.type){
+          case "file":appendFileMsg(msgData,"#chat-pane-"+paneId.replace("pane-","")); break;
+          default: appendMsg(msgData,"#chat-pane-"+paneId.replace("pane-",""));
+        }  
+        
+        
+        var frndId = "";
+        if(msgData.fromUid === "all" || msgData.toId === "all")
+          frndId = "all";
+        else 
+          frndId = (msgData.fromUid === window.sessionStorage.uid)?msgData.toId:msgData.fromUid; 
+        
+        if(!$("#"+paneId).is(":visible")){
+          updateUnreadBadge($("#sidemenu #"+frndId).find(".badge"),1);
+        }
+      });
+      
+      socket.on("syncMsgs",function(data){
+        console.log(data);
+        for(var msgs = 0;msgs<data.msgSet.length;msgs++){
+          switch(data.msgSet[msgs].type){
+            case "file":appendFileMsg(data.msgSet[msgs],"#chat-pane-"+data.paneId.replace("pane-","")); break;
+            default: appendMsg(data.msgSet[msgs],"#chat-pane-"+data.paneId.replace("pane-",""));
+          } 
+        }
+      });
+      
+      socket.on("startTyping",function(data){
+        if(data.uid !== window.sessionStorage.uid)
+          notifyTyping(data,true);
+      });
+      
+      socket.on("endTyping",function(data){
+        if(data.uid !== window.sessionStorage.uid)
+          notifyTyping(data,false);
+      });
+      
+      socket.on("transferFile",function(data){
+        console.log("transfer file:",data);
+        if(files[data.fileId])
+          socket.emit("transferFile",{fileId:data.fileId,file:files[data.fileId].file,toSocket:data.toSocket});
+        else
+          socket.emit("transferFile",{fileId:data.fileId,error:"File not available",toSocket:data.toSocket});
+      });
+      
+      socket.on("receiveFile",function(fileMsg){
+        console.log(fileMsg);
+        if(fileMsg.file){
+          var dLink = document.createElement("a");
+          dLink.href = fileMsg.file;
+          dLink.download = fileMsg.fileName;
+          document.body.appendChild(dLink);
+          dLink.click();
+          dLink.parentNode.removeChild(dLink);
+        }else {
+          if($("#"+fileMsg.msgid).find(".chat-body #file-error").length === 0)
+            $("#"+fileMsg.msgid).find(".chat-body").append("<p id='file-error' style='color: #d46767;font-size: 12px;font-style: italic;padding: 5px 10px;'>Oops ! File not available !!</p>");
+        }
+      });
+      
+      $("#user-msg").on("keydown",function(e){
+        if($(this).val() === "")
+          socket.emit("startTyping");
+      });
+      
+      $("#user-msg").on("keyup",function(e){
+        if($(this).val() === "")
+          socket.emit("endTyping");
+      });
+      
+      
+      
+      
+    }/*End init()*/
+    
+    function appendMsg(msgData,toPane){
+      console.log("appned msg to pane:",toPane);
+      var poolDir = (msgData.fromUid === window.sessionStorage.uid)?"pull-right":"pull-left";
+      var float = (msgData.fromUid === window.sessionStorage.uid)?"right":"left";
+      var strHTML="";
+      strHTML += "<li id='"+msgData.msgid+"' data-by-user='"+msgData.fromUid+"' class='"+float+" clearfix'>";
+      strHTML += "  <span class='chat-img "+poolDir+"'>";
+      strHTML += "    <div class='user-avatar sidebar-icon' style='background:"+msgData.ucolor+";'><span>"+msgData.fromUname.substring(0,1)+"</span></div>";
+      strHTML += "  </span>";
+      strHTML += "  <div class='chat-body clearfix'>";
+      msgData.fromUname = (msgData.fromUid === window.sessionStorage.uid)?"Me":msgData.fromUname;
+      strHTML += "    <div class='header'>";
+      if(msgData.fromUid === window.sessionStorage.uid){
+        strHTML += "      <small class='text-muted' style='font-size: 10px;'><span class='glyphicon glyphicon-time'></span>";
+        strHTML += "      <time class='timeago sidebar-lastActivity' datetime='"+msgData.sentTime+"'></time></small>";
+        strHTML += "      <strong class='pull-right primary-font'>"+msgData.fromUname+"</strong>";
+      }else{
+        strHTML += "      <strong class='primary-font'>"+msgData.fromUname+"</strong>";
+        strHTML += "      <small class='pull-right text-muted' style='font-size: 10px;'><span class='glyphicon glyphicon-time'></span>";
+        strHTML += "      <time class='timeago sidebar-lastActivity' datetime='"+msgData.sentTime+"'></time></small>";
+      }
+      strHTML += "    </div>";
+      strHTML += "    <p>"+msgData.msg+"</p>";    
+      strHTML += "  </div>";
+      strHTML += "</li>";
+      $(strHTML).hide().appendTo(toPane).show("normal",function(){
+        $(toPane).parent(".panel-body").scrollTop($(toPane).parent(".panel-body").scrollTop() + $(toPane).find("#"+msgData.msgid).height());
+      });
+      $("time.timeago").timeago();
+      
+      
+    }/*End appendMsg()*/
+    
+    function appendFileMsg(msgData,toPane){
+      console.log("Appending file mas to pane:"+toPane);
+      var poolDir = (msgData.fromUid === window.sessionStorage.uid)?"pull-right":"pull-left";
+      var float = (msgData.fromUid === window.sessionStorage.uid)?"right":"left";
+      
+      var strHTML="";
+      strHTML += "<li id='"+msgData.msgid+"' data-by-user='"+msgData.fromUid+"' class='"+float+" clearfix'>";
+      strHTML += "  <span class='chat-img "+poolDir+"'>";
+      strHTML += "    <div class='user-avatar sidebar-icon' style='background:"+msgData.ucolor+";'><span>"+msgData.fromUname.substring(0,1)+"</span></div>";
+      strHTML += "  </span>";
+      strHTML += "  <div class='chat-body clearfix'>";
+      msgData.fromUname = (msgData.fromUid === window.sessionStorage.uid)?"Me":msgData.fromUname;
+      strHTML += "    <div class='header'>";
+      if(msgData.fromUid === window.sessionStorage.uid){
+        strHTML += "      <small class='text-muted' style='font-size: 10px;'><span class='glyphicon glyphicon-time'></span>";
+        strHTML += "      <time class='timeago sidebar-lastActivity' datetime='"+msgData.sentTime+"'></time></small>";
+        strHTML += "      <strong class='pull-right primary-font'>"+msgData.fromUname+"</strong>";
+      }else{
+        strHTML += "      <strong class='primary-font'>"+msgData.fromUname+"</strong>";
+        strHTML += "      <small class='pull-right text-muted' style='font-size: 10px;'><span class='glyphicon glyphicon-time'></span>";
+        strHTML += "      <time class='timeago sidebar-lastActivity' datetime='"+msgData.sentTime+"'></time></small>";
+      }
+      strHTML += "    </div>";
+      strHTML += "    <p id='"+msgData.fileId+"' style='cursor:pointer;'><span style='font-size: 40px;margin: 10px;'><i class='fa fa-file' aria-hidden='true'></i></span>";
+      strHTML += "      <span style='position: absolute; margin-top: 8px;'>"+msgData.fileName+"</span><span>"+(parseInt(msgData.fileSize)/1024).toFixed(2)+" KB</span>";
+      strHTML += "    </p>";    
+      strHTML += "  </div>";
+      strHTML += "</li>";
+      $(strHTML).hide().appendTo(toPane).show("normal",function(){
+        $(toPane).parent(".panel-body").scrollTop($(toPane).parent(".panel-body").scrollTop() + $(toPane).find("#"+msgData.msgid).height());
+      });
+      
+      /*bind file download event*/
+      $(toPane).find("#"+msgData.fileId).click(function(){
+        console.log("click on download");
+        downloadFile(msgData);
+      });
+      $("time.timeago").timeago();
+      
+      
+    }/*End appendFileMsg()*/
+    
+    function downloadFile(data){
+      socket.emit("downloadFile",data);
+    }/*End downloadFile()*/
+    
+    function updateUserList(userData){
+      var strHTML="";
+      strHTML += "<li>";
+      strHTML += "  <a id='all' uname='all' class='sidebar-header' href='#'>";
+      strHTML += "   <span class='sidebar-icon'><i class='fa fa-users'></i><span class='badge'></span></span>";
+      strHTML += "   <span class='sidebar-title'>Friends</span>";
+      strHTML += "  </a>";
+      strHTML += "</li>";
+      for(var user in userData){
+        if(user === window.sessionStorage.uid) {
+          $("#uname").text(userData[user].uname);
+          continue;
+        }
+        strHTML += "<li >";
+        strHTML += " <a id='"+user+"' uname='"+userData[user].uname+"'>";
+        strHTML += "  <div class='user-avatar' style='background:"+userData[user].ucolor+";'><span>"+userData[user].uname.substring(0,1)+"</span><span class='badge' style='margin-top:-10px;'></span></div>";
+        strHTML += "  <span class='sidebar-title'>"+userData[user].uname+"</span>";
+        strHTML += "  <time class='timeago sidebar-lastActivity' datetime='"+userData[user].connectedOn+"'></time>";
+        strHTML += " </a>";
+        strHTML += "</li>";
+      }
+      $("#sidemenu").html(strHTML);
+      $("time.timeago").timeago();
+      
+      /*---------Click on a person will show his personal chat box---------*/
+      $("#sidemenu li a").off("click");
+      $("#sidemenu li a").on("click",function(){
+                
+        var paneId = "", fromUid = window.sessionStorage.uid,toId = $(this).attr("id"),uname = $(this).attr("uname") ;
+        if(toId === "all")
+          showChatPane("all","all","all");
+        else if($("#pane-"+fromUid+"-"+toId).length === 0 && $("#pane-"+toId+"-"+fromUid).length === 0)
+          showChatPane(fromUid, toId ,uname);
+        else if($("#pane-"+fromUid+"-"+toId).length > 0)
+          showChatPane(fromUid, toId ,uname);
+        else
+          showChatPane(toId ,fromUid,uname);
+        
+        updateUnreadBadge($(this).find(".badge"),0);
+        
+      });
+    }/*End updateUserList()*/
+    
+    function updateUnreadBadge(elem,byNum){
+      if(byNum === 0)
+        $(elem).text("");
+      else if($(elem).text() === ""){
+        $(elem).text(byNum);
+      }else{
+        var currentBdg = parseInt($(elem).text());
+        $(elem).text(parseInt(currentBdg+byNum));
+      }
+    }/*End updateUnreadBadge()*/
+    
+    function notifyTyping(data,doShow){
+      var paneId; 
+      if(data.toId === "all" || data.uid === "all")
+        paneId = "pane-all-all";
+      else if($("#pane-"+data.toId+"-"+data.uid).length > 0)
+        paneId = "pane-"+data.toId+"-"+data.uid;
+      else if($("#pane-"+data.uid+"-"+data.toId).length > 0)
+        paneId = "pane-"+data.uid+"-"+data.toId;
+      var elemNotify = $("#"+paneId).find("#notify-typing");
+      
+      if(doShow)
+      {
+        if($(elemNotify).length > 0)
+          $(elemNotify).remove();
+        var strHTML="";
+        strHTML += "<div id='notify-typing' class='notify-typing' uid='"+data.uid+"'>";
+        strHTML += "  <span class='typing-user'>"+data.uname+" is typing</span>";
+        strHTML += "  <div class='loader'>";
+        strHTML += "    <span></span> <span></span> <span></span>";
+        strHTML += "  </div>";
+        strHTML += "</div>";
+        $("#"+paneId).find(".panel-footer .input-group").prepend(strHTML);
+      }else {
+        if($(elemNotify).length > 0 && $(elemNotify).attr("uid") === data.uid)
+          $(elemNotify).remove();
+      }
+
+    }/*End notifyTyping()*/
+    
+    function showChatPane(fromId,toId,uname){
+      $(".pane-cntr").hide();
+      var thisPane = $("#pane-"+fromId+"-"+toId);
+      if(thisPane.length > 0)
+      {
+        $(thisPane).show();
+      }else {
+        var strHTML="";
+        strHTML += "<div class='panel panel-primary pane-cntr' id='pane-"+fromId+"-"+toId+"'>";
+        strHTML += "  <div class='panel-heading' id='accordion'style='padding:0;'>";
+        strHTML += "    <span class='glyphicon glyphicon-comment' style='padding: 12px;background: white;color: black;border-top-right-radius: 5px; border-top-left-radius: 5px;'></span> Chat with "+uname;
+        /*strHTML += "    <div class='btn-group pull-right'>";
+        strHTML += "      <a type='button' class='btn btn-default btn-xs' data-toggle='collapse' data-parent='#accordion' href='#collapseOne'>";
+        strHTML += "        <span class='glyphicon glyphicon-chevron-down'></span>";
+        strHTML += "      </a>";
+        strHTML += "    </div>";*/
+        strHTML += "  </div>";
+        strHTML += "  <div class='panel-collapse collapse in' id='collapseOne'>";
+        strHTML += "    <div class='panel-body'>";
+        strHTML += "      <ul id='chat-pane-"+fromId+"-"+toId+"' class='chat'>";
+        strHTML += "      </ul>";
+        strHTML += "    </div>";
+        strHTML += "    <div class='panel-footer'>";
+        strHTML += "      <div class='input-group'>";
+        strHTML += "        <input id='user-msg-"+fromId+"-"+toId+"' type='text' class='form-control input-sm' placeholder='Type your message here...' />";
+        strHTML += "        <span class='input-group-btn'>";
+        strHTML += "          <button to-user='"+(toId === window.sessionStorage.uid?fromId:toId)+"' class='btn btn-warning btn-sm' id='btn-send-msg-"+fromId+"-"+toId+"' style='color:#333;'><i class='fa fa-paper-plane' aria-hidden='true'></i></button>";
+        strHTML += "          <label class='btn btn-warning btn-file' style='border-left-color: #fff; color:#333;'>";
+        strHTML += "            <i class='fa fa-file-text-o' aria-hidden='true' style='font-size: 23px;'></i>";
+        strHTML += "            <input to-user='"+(toId === window.sessionStorage.uid?fromId:toId)+"' id='uploadBox-"+fromId+"-"+toId+"' type='file' style='display: none;'>";
+        strHTML += "          </label>";
+        strHTML += "        </span>";
+        strHTML += "      </div>";
+        strHTML += "    </div>";
+        strHTML += "  </div>";
+        strHTML += "</div>";
+        $("#page-content-wrapper .all-pane-cntr").append(strHTML);
+        
+        $(".panel-body").height($(window).height()-184);
+        
+        $("#btn-send-msg-"+fromId+"-"+toId).click(function(e){
+          var toUser = $(this).attr("to-user");
+          var msg = $("#user-msg-"+fromId+"-"+toId).val();
+          if(msg !== "") socket.emit("sendMsg",{"msg":msg,toId:toUser,toUname:uname});
+          $("#user-msg-"+fromId+"-"+toId).val("");
+        });
+        
+        $("#user-msg-"+fromId+"-"+toId).on("keydown",function(e){
+        if($(this).val() === "")
+            socket.emit("startTyping",{toId:toId,paneId:"pane-"+fromId+"-"+toId});
+        });
+
+        $("#user-msg-"+fromId+"-"+toId).on("keyup",function(e){
+          if($(this).val() === "")
+            socket.emit("endTyping",{toId:toId,paneId:"pane-"+fromId+"-"+toId});
+        });
+        socket.emit("syncMsgs",{syncUser:toId,paneId:"pane-"+fromId+"-"+toId});
+       
+      /*************** For file uploading ***************/
+        $("#uploadBox-"+fromId+"-"+toId).bind('change', function(e){
+          var data = e.originalEvent.target.files[0];
+          readThenSendFile(data);      
+        });
+
+        function readThenSendFile(data){
+
+          var reader = new FileReader();
+          reader.onload = function(evt){
+            var msg ={};
+            //msg.username = username;
+            //msg.file = evt.target.result;
+            msg.fileName = data.name;
+            msg.fileId = getUniqueFileId();
+            msg.toId = toId; 
+            msg.type = "file";
+            msg.fileSize = data.size; 
+            msg.toUname=uname;
+            files[msg.fileId] = JSON.parse(JSON.stringify(msg)); 
+            files[msg.fileId].file = evt.target.result;
+            socket.emit('sendMsg', msg);
+          };
+          reader.readAsDataURL(data);
+        }/*End readThenSendFile()*/
+        
+      }
+        
+    }/*End showChatPane()*/
+    
+    function getUniqueFileId(){
+      return "file-"+Math.floor(Math.random()*1000)+"-"+(new Date().getTime());
+    }/*End getUniqueFileId()*/
+    
+    /*Send message by pressing enter on screen*/
+    $(document).keypress(function(e) {
+      if(e.which == 13) {
+        $(".pane-cntr").each(function(index){
+          if($(this).is(":visible")){
+            $(this).find(".btn-sm").click();
+          }
+        });
+      }
+    });
+    
+    
+    $(window).resize(function(){
+      $(".panel-body").height($(window).height()-184);
+    });
+    
+    /*window.addEventListener("beforeunload", function (e) {
+      var confirmationMessage = 'You are sure, want to leave this room ?';
+
+      (e || window.event).returnValue = confirmationMessage; //Gecko + IE
+      return confirmationMessage; //Gecko + Webkit, Safari, Chrome etc.
+    });*/
+    
+  </script>
+ 
+</body>
+</html>
