@@ -1,0 +1,28 @@
+{
+  "name": "qikchat",
+  "version": "1.0.0",
+  "description": "Quick chat any time any where",
+  "main": "chatServer.js",
+  "scripts": {
+    "start": "node chatServer.js",
+    "debug": "set DEBUG=express:router & node chatServer.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kausikongit/qik-chat.git"
+  },
+  "author": "Kausik Dey",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/kausikongit/qik-chat/issues"
+  },
+  "homepage": "https://github.com/kausikongit/qik-chat#readme",
+  "devDependencies": {
+    "express": "^4.16.4",
+    "socket.io": "^2.2.0"
+  },
+  "dependencies": {
+    
+  }
+}

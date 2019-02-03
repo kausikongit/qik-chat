@@ -3,7 +3,6 @@ var app = express();
 var server = require('http').Server(app);
 var io = require('socket.io')(server);
 var fs = require("fs");
-var bodyParser = require('body-parser');
 //var users = {}; 
 var rooms = {}; 
 var files = {}; 
@@ -12,15 +11,14 @@ var port = 8080;
 server.listen(port, function () {
    var host = server.address().address;
    var port = server.address().port;
-   
-   console.log("Chat Server is running on port:%s", port);
+   console.log("Chat Server is running on host:%s port:%s", host,port);
 });
 
 app.use(express.static(__dirname + '/public'));
 // parse application/json
-app.use(bodyParser.json());
+app.use(express.json());
 // parse application/x-www-form-urlencoded
-app.use(bodyParser.urlencoded({extended: true}));
+app.use(express.urlencoded({extended: true}));
 
 /************* Read user data from file ***************
 var users = readJsonFileSync(__dirname + '/public/files/users.json');*/
@@ -163,7 +161,7 @@ io.on('connection', function (socket) {
       uList[user] = JSON.parse(JSON.stringify(users[user]));
     }
     io.sockets["in"](socket.room).emit('updateUserList', uList);
-  }/*End emitUserList()*/
+  }
   
   /*If user refresh of join later then messages can be sync*/
   function syncMsgs(data){
@@ -181,7 +179,7 @@ io.on('connection', function (socket) {
     }catch(ex){
       console.log(ex);
     }
-  }/*End syncMsgs()*/
+  }
   
   /*when a new message arrive emit to every user on same room*/
   socket.on("sendMsg",function(data){
@@ -247,7 +245,6 @@ io.on('connection', function (socket) {
       var toSocket = rooms[socket.roomid]["users"][data.toId]["socketId"];
       io.to(toSocket).emit("startTyping",data);
     }
-    
   });
   
   /*When user end typing*/
@@ -261,39 +258,6 @@ io.on('connection', function (socket) {
       io.to(toSocket).emit("endTyping",data);
     }
   });
-  
-  /*When user send file*/
-  /*socket.on('base64 file', function (data) {
-    console.log('received file ',data.fileName,data.fileId,data.toId);
-    
-    data.sentTime = getLocalTimestamp();
-    data.fromUid = socket.uid;
-    data.fromUname = socket.uname; 
-    data.msgid = "msg"+(new Date().getTime())+get4DigitRandom();
-    data.ucolor = socket.ucolor; 
-    // socket.broadcast.emit('base64 image', //exclude sender
-    io.sockets.emit('newMsg',msg);  //include sender
-    
-    if(data.toId === "all"){
-      if(!rooms[socket.roomid]["msgs"]["msgs-all-all"])rooms[socket.roomid]["msgs"]["msgs-all-all"] = [];
-      rooms[socket.roomid]["msgs"]["msgs-all-all"].push(data);
-      io.sockets["in"](socket.room).emit("newMsg",data);
-    }
-    else {
-      var toSocket = rooms[socket.roomid]["users"][data.toId]["socketId"];
-      if(!rooms[socket.roomid]["msgs"]["msgs-"+data.toId+"-"+data.fromUid] && !rooms[socket.roomid]["msgs"]["msgs-"+data.fromUid+"-"+data.toId]){
-        rooms[socket.roomid]["msgs"]["msgs-"+data.toId+"-"+data.fromUid] = [data];
-      }
-      else if(rooms[socket.roomid]["msgs"]["msgs-"+data.toId+"-"+data.fromUid]){
-        rooms[socket.roomid]["msgs"]["msgs-"+data.toId+"-"+data.fromUid].push(data);
-      }else{
-        rooms[socket.roomid]["msgs"]["msgs-"+data.fromUid+"-"+data.toId].push(data);
-      }
-      io.to(toSocket).emit("newMsg",data);
-      socket.emit("newMsg",data);
-    }
-    
-  });*/
   
 });
 
