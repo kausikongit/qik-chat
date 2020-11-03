@@ -15,14 +15,12 @@
   "author": "Kausik Dey",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/kausikongit/qik-chat/issues"
+    "url": "https://github.com/kdologic/qik-chat/issues"
   },
-  "homepage": "https://github.com/kausikongit/qik-chat#readme",
+  "homepage": "https://github.com/kdologic/qik-chat#readme",
   "devDependencies": {
     "express": "^4.16.4",
     "socket.io": "^2.2.0"
   },
-  "dependencies": {
-    
-  }
+  "dependencies": {}
 }
